@@ -8,6 +8,10 @@ This is a small, dependency-free Python research-data tool, not a downloader,
 trading bot, backtest engine, data-repair system or investment recommendation.
 It does not integrate with Freqtrade or read its native Feather files.
 
+## 中文摘要
+
+本工具只读比较两份本地 OHLCV CSV 快照，找出在双方都已收盘的窗口里被修订、新增或删除的 K 线。数值用精确十进制比较，不用浮点；每处修订带有 `after` 减 `before` 的精确差值。它不联网、不修改文件、也不交易。退出码：`0` 无数值或成员变化，`1` 有变化，`2` 输入或参数无效（错误信息是 stderr 上的一行 JSON）。
+
 ## Why
 
 Two downloads of historical candles need not be identical. A normal diff also
@@ -19,7 +23,7 @@ sources; no novelty or production-readiness claim is made.
 
 ## Install locally
 
-Python 3.10 or newer, no runtime dependencies:
+Python 3.8 or newer, no runtime dependencies:
 
 ```sh
 python -m pip install .
@@ -39,11 +43,14 @@ bar-snapshot-diff examples/before.csv examples/after.csv \
   --source-id synthetic-spot-unadjusted-1h
 ```
 
-Expected: one unchanged, one revised, one added, one removed. The 03:00 bar is
-excluded from both files because it was not closed at the first capture time.
-Examples are invented fixtures, not exchange prices. Output is JSON on stdout.
-Exit codes: **0** no numeric or membership changes, **1** changes, **2** invalid
-input/options. Exit 0 does not certify completeness or correct prices.
+Expected: one unchanged, one revised, one added, one removed. The revised
+01:00 close goes from `11` to `10`, so that field's `delta` is `-1` (after
+minus before, as exact decimal text). The 03:00 bar is excluded from both
+files because it was not closed at the first capture time. Examples are
+invented fixtures, not exchange prices. Output is JSON on stdout. Exit codes:
+**0** no numeric or membership changes, **1** changes, **2** invalid input or
+options. Exit 2 prints one JSON object, `{"error": "..."}`, on stderr and does
+not write a report. Exit 0 does not certify completeness or correct prices.
 
 ## Input contract
 
@@ -64,8 +71,12 @@ BTC/USDT,2026-01-01T00:00:00Z,10,12,8,11,100
 - Numeric values use dot-decimal notation or exponent notation. Values are
   compared exactly with Decimal, not floating point or a tolerance. `10`,
   `10.0`, and `1e1` compare equal. The report retains original strings.
-  Price values must be positive, volume nonnegative, and low/high must bound
-  open/close. Negative-price instruments are intentionally unsupported.
+  A revised field also includes `delta`, the exact difference of after minus
+  before, rendered as fixed-point text. That difference ignores the
+  process-wide decimal precision. Format-only differences stay unchanged and
+  have no delta. Price values must be positive, volume nonnegative, and
+  low/high must bound open/close. Negative-price instruments are intentionally
+  unsupported.
 - Symbols are exact, case-sensitive labels, with no surrounding whitespace or
   C0 control characters (U+0000..U+001F). The tool does not resolve aliases.
 - The interval is a fixed number of elapsed seconds, 1..31536000. No months,
@@ -108,8 +119,12 @@ before deciding which snapshot to use; keep both originals.
 
 ## Development
 
+Python 3.8 or newer. Continuous integration runs ruff and pytest on 3.8 and
+3.9 (`ubuntu-22.04`) and on 3.10 through 3.13 (`ubuntu-latest`).
+
 ```sh
-PYTHONPATH=src python -m unittest discover -s tests -v
+PYTHONPATH=src python -m pytest
+python -m ruff check src tests
 python -m pip wheel . --no-deps --no-build-isolation -w dist
 ```
 

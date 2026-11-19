@@ -8,7 +8,7 @@ import re
 import stat
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal, InvalidOperation
+from decimal import Context, Decimal, InvalidOperation, localcontext
 
 FIELDS = ("open", "high", "low", "close", "volume")
 HEADER = ("symbol", "timestamp", *FIELDS)
@@ -17,6 +17,10 @@ STAMP = re.compile(
     r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})\Z"
 )
 NUMBER = re.compile(r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?\Z")
+# Two 100-digit tokens with exponents in +/-1000 can differ by about 2200 digits.
+_DELTA = Context(prec=4096, Emax=1000000, Emin=-1000000)
+for _signal in list(_DELTA.traps):
+    _DELTA.traps[_signal] = False
 
 
 class AuditError(ValueError):
@@ -114,7 +118,10 @@ def load_snapshot(path):
             for value in raw:
                 if len(value) > 100 or not NUMBER.fullmatch(value):
                     raise AuditError(f"record {record}: invalid decimal")
-                number = Decimal(value)
+                try:
+                    number = Decimal(value)
+                except InvalidOperation as exc:
+                    raise AuditError(f"record {record}: invalid decimal") from exc
                 if not number.is_finite() or abs(number.adjusted()) > 1000:
                     raise AuditError(
                         f"record {record}: nonfinite or excessive decimal exponent"
@@ -135,6 +142,42 @@ def load_snapshot(path):
         raise AuditError(f"invalid CSV: {exc}") from exc
 
 
+def format_exact(number):
+    """Fixed-point text of a finite Decimal, with no context rounding."""
+    if not number.is_finite():
+        raise AuditError("nonfinite decimal has no exact rendering")
+    if number.is_zero():
+        return "0"
+    sign, digits, exponent = number.as_tuple()
+    digits = list(digits)
+    while digits and digits[-1] == 0:
+        digits.pop()
+        exponent += 1
+    if not digits:
+        return "0"
+    body = "".join(str(digit) for digit in digits)
+    if exponent >= 0:
+        text = body + ("0" * exponent)
+    else:
+        point = len(body) + exponent
+        if point > 0:
+            text = body[:point] + "." + body[point:]
+        else:
+            text = "0." + ("0" * -point) + body
+    if sign:
+        text = "-" + text
+    return text
+
+
+def exact_delta(after, before):
+    """Exact after-minus-before text. Ignores the caller's decimal precision."""
+    with localcontext(_DELTA):
+        delta = after - before
+    if not delta.is_finite() or delta.is_zero():
+        raise AuditError("internal: differing decimals produced a non-exact delta")
+    return format_exact(delta)
+
+
 def compare(
     before, after, *, interval_seconds, start, end, before_asof, after_asof, source_id
 ):
@@ -142,6 +185,7 @@ def compare(
 
     All time arguments are timezone-explicit ISO strings. No expected grid is
     inferred. `source_id` is an unverified caller assertion of common provenance.
+    Revised fields include an exact decimal `delta` of after minus before.
     """
     if type(interval_seconds) is not int or not 1 <= interval_seconds <= 31536000:
         raise AuditError("interval_seconds must be integer 1..31536000")
@@ -205,7 +249,11 @@ def compare(
             )
         else:
             fields = {
-                name: {"before": left.raw[i], "after": right.raw[i]}
+                name: {
+                    "before": left.raw[i],
+                    "after": right.raw[i],
+                    "delta": exact_delta(right.values[i], left.values[i]),
+                }
                 for i, name in enumerate(FIELDS)
                 if left.values[i] != right.values[i]
             }

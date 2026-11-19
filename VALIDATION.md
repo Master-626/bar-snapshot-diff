@@ -24,6 +24,27 @@ real exchange snapshot pairs, Freqtrade integration, performance at the size
 limit, adversarial concurrent file replacement, downstream backtest behavior.
 Synthetic examples demonstrate logic, not actual data-provider revisions.
 
+## November 18, 2026 follow-up
+
+Local checks after exact `delta` reporting, record-numbered decimal errors,
+JSON CLI usage errors, and the license-file metadata fix:
+
+- Linux, CPython 3.8.20, 3.9.25, 3.10.22, 3.11.18, 3.12.3, and 3.13.18:
+  `PYTHONPATH=src python -m pytest` — 50 passed. On 3.10 and newer, pytest also
+  reported 35 unittest subtests passed. The count includes the original
+  unittest module plus the new pytest module.
+- Ruff 0.17.5 `ruff check src tests` passed with the configured E4/E7/E9/F/I
+  rules (`target-version = py38`).
+- Isolated wheels built on those same interpreters. A non-isolated build with
+  setuptools 68.1.2 also succeeded after `license` was changed to a file table.
+- The documented example still exits 1 with one unchanged, one revised, one
+  added, and one removed row. The revised close delta is `-1`. Example bytes
+  were unchanged.
+
+CI is Linux-only: ubuntu-22.04 for 3.8 and 3.9, ubuntu-latest for 3.10–3.13.
+Remote Actions results are separate from this local record. No PyPI release is
+claimed. Real exchange snapshot pairs were not used.
+
 ## November 17 follow-up
 
 Linux Python 3.13.5: all 40 source tests and all 40 wheel-import tests passed.
