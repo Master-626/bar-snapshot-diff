@@ -1,18 +1,31 @@
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
+
 [project]
 name = "bar-snapshot-diff"
-version = "0.1.0"
+version = "0.1.1"
 description = "Read-only comparison of closed OHLCV CSV snapshots"
 readme = "README.md"
-requires-python = ">=3.10"
-license = "MIT"
+requires-python = ">=3.8"
+# File table, not an SPDX string: setuptools>=77 accepts `license = "MIT"` but
+# does not run on Python 3.8. The last 3.8-capable setuptools still requires this.
+license = { file = "LICENSE" }
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4", "ruff>=0.6"]
+
 [project.scripts]
 bar-snapshot-diff = "bar_snapshot_diff.__main__:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
 [tool.ruff]
-target-version = "py310"
+target-version = "py38"
+
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I"]

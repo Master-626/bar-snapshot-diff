@@ -232,11 +232,9 @@ class Tests(unittest.TestCase):
 
     def test_bounded_input(self):
         p = self.file([bar()])
-        with (
-            patch("bar_snapshot_diff.core.MAX_BYTES", 5),
-            self.assertRaises(AuditError),
-        ):
-            load_snapshot(p)
+        with patch("bar_snapshot_diff.core.MAX_BYTES", 5):
+            with self.assertRaises(AuditError):
+                load_snapshot(p)
 
     def test_invalid_options(self):
         for changes in [

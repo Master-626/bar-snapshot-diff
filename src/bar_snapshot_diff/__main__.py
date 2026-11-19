@@ -5,8 +5,16 @@ import sys
 from .core import AuditError, compare, load_snapshot
 
 
+class JsonArgumentParser(argparse.ArgumentParser):
+    """Option errors use the same JSON object as audit failures."""
+
+    def error(self, message):
+        print(json.dumps({"error": message}, ensure_ascii=True), file=sys.stderr)
+        self.exit(2)
+
+
 def main(argv=None):
-    parser = argparse.ArgumentParser(
+    parser = JsonArgumentParser(
         description="Compare closed OHLCV CSV snapshots without changing data."
     )
     parser.add_argument("before")
